@@ -4,6 +4,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    UniqueConstraint,
 )
 
 from sqlalchemy.orm import relationship
@@ -13,6 +14,14 @@ from backend.database.base import Base
 
 class ModelElementIndex(Base):
     __tablename__ = "model_element_index"
+
+    __table_args__ = (
+    UniqueConstraint(
+        "system_id",
+        "git_path",
+        name="uq_system_git_path",
+    ),
+)
 
     id = Column(Integer, primary_key=True)
 
