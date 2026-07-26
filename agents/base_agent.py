@@ -1,4 +1,4 @@
-"""Factory for the Deep Agent used by ingestion subagents."""
+"""Factory for the base Deep Agent."""
 
 from deepagents import create_deep_agent
 
@@ -6,27 +6,19 @@ from agents.filesystem_backend import (
     agent_filesystem_permissions,
     create_agent_backend,
 )
+from backend.llms.groq import get_llm
 
 
-def create_base_agent(model):
-    """Create an agent with safe evidence/model filesystem boundaries."""
+def create_base_agent():
+    """Create the MVP base Deep Agent using Groq."""
     return create_deep_agent(
-        model=model,
+        model=get_llm(),
         name="Legacy System Model Agent",
         backend=create_agent_backend(),
         permissions=agent_filesystem_permissions(),
         skills=["/skills/archimate-metamodel"],
         system_prompt="""
-You build traceable ArchiMate as-is model output.
-
-Filesystem rules:
-- Read source evidence only from /evidence/.
-- Never attempt to create, edit, or delete files under /evidence/.
-- Write produced model files only under /systems/<system-id>/as-is/.
-- Use the ArchiMate skill under /skills/archimate-metamodel before creating
-  ArchiMate elements or relationships.
+You are the base agent for a legacy-system modelling platform.
+Respond clearly and use the filesystem only when needed.
 """,
     )
-
-
-
