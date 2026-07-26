@@ -46,6 +46,9 @@ def update_job_status(
     if job is None:
         return None
 
+    if job.status == status and job.error_message == error_message and job.finished_at == finished_at:
+        return job  # Already in target state — idempotent
+
     job.status = status
     job.error_message = error_message
     job.finished_at = finished_at
@@ -53,6 +56,4 @@ def update_job_status(
     db.commit()
     db.refresh(job)
 
-    return job
-
-
+    return job   

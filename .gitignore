@@ -13,3 +13,8 @@ build/
 dist/
 
 .vscode/
+
+.coverage
+htmlcov/
+*.egg-info/
+.mypy_cache/
