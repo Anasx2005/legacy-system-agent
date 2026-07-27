@@ -1,0 +1,5 @@
+paths:
+  /customers/{customerId}:
+    get:
+      summary: Retrieve customer account information
+      operationId: getCustomer
