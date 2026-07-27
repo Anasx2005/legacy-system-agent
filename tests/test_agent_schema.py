@@ -22,6 +22,12 @@ def valid_element_data() -> dict:
             {
                 "target_id": "customer-data",
                 "type": "Access",
+                "evidence": [
+                    {
+                        "source_type": "source_code",
+                        "locator": "frontend/src/App.tsx#L12-L20",
+                    }
+                ],
             }
         ],
     }

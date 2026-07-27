@@ -144,16 +144,19 @@ class EvidenceCitation(BaseModel):
 
 
 class Relationship(BaseModel):
-    """A relationship from the current element to another element."""
+    """A traceable relationship from the current element to another element."""
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     target_id: str = Field(
         min_length=1,
         pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$",
-        description="Stable, human-readable slug of the target element.",
     )
     type: str = Field(min_length=1)
+    evidence: list[EvidenceCitation] = Field(
+        min_length=1,
+        description="At least one evidence citation is required per relationship.",
+    )
 
     @field_validator("type")
     @classmethod

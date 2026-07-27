@@ -7,24 +7,28 @@ from agents.filesystem_backend import (
     create_agent_backend,
 )
 from agents.strategy_analyst import create_strategy_analyst
+from agents.business_analyst import create_business_analyst
 from agents.stub_subagents import create_stub_subagents
 from backend.llms.ollama_cloud import get_llm
+
+from agents.business_analyst import create_business_analyst
+from agents.code_analyzer import create_code_analyzer
+from agents.infra_analyzer import create_infra_analyzer
+from agents.integration_mapper import create_integration_mapper
+from agents.strategy_analyst import create_strategy_analyst
 
 
 
 
 def create_subagents():
-    """Use the real E1 analyst and retain placeholders for future Epic E work."""
-    placeholder_subagents = [
-        subagent
-        for subagent in create_stub_subagents()
-        if subagent["name"] != "strategy-analyst"
+    """Register all implemented Epic E subagents."""
+    return [
+        create_strategy_analyst(),
+        create_business_analyst(),
+        create_code_analyzer(),
+        create_infra_analyzer(),
+        create_integration_mapper(),
     ]
-
-    return [create_strategy_analyst(), *placeholder_subagents]
-
-
-
 
 
 def create_base_agent():
@@ -35,7 +39,7 @@ def create_base_agent():
         backend=create_agent_backend(),
         permissions=agent_filesystem_permissions(),
         skills=["/skills/archimate-metamodel"],
-        subagents=[create_strategy_analyst()],
+        subagents=create_subagents(),
         system_prompt="""
 You are the orchestrator for a legacy-system modelling platform.
 

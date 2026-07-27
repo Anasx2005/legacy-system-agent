@@ -1,4 +1,4 @@
-"""Validated writer for ArchiMate model-element JSON files."""
+"""Validated writers for ArchiMate model-element JSON files."""
 
 from __future__ import annotations
 
@@ -13,8 +13,6 @@ from agents.schema import ModelElement
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-ALLOWED_LAYERS = {"motivation", "strategy"}
-ALLOWED_EVIDENCE_FOLDERS = {"motivation", "strategy"}
 
 
 def _configured_directory(environment_variable: str) -> Path:
@@ -39,14 +37,12 @@ def _configured_directory(environment_variable: str) -> Path:
     return directory
 
 
-def _validate_evidence_locator(locator: str, evidence_directory: Path) -> None:
-    """
-    Confirm that an evidence locator points to a real allowed evidence file.
-
-    Accepted examples:
-    - strategy/modernisation-plan.md#Customer self-service
-    - motivation/customer-experience.md#Business goal
-    """
+def _validate_evidence_locator(
+    locator: str,
+    evidence_directory: Path,
+    allowed_evidence_folders: set[str],
+) -> None:
+    """Confirm that an evidence locator points to a permitted real evidence file."""
     file_part = locator.split("#", maxsplit=1)[0].replace("\\", "/")
 
     if file_part.startswith("/evidence/"):
@@ -57,9 +53,10 @@ def _validate_evidence_locator(locator: str, evidence_directory: Path) -> None:
     if relative_path.is_absolute() or ".." in relative_path.parts:
         raise ValueError(f"Unsafe evidence locator: {locator}")
 
-    if not relative_path.parts or relative_path.parts[0] not in ALLOWED_EVIDENCE_FOLDERS:
+    if not relative_path.parts or relative_path.parts[0] not in allowed_evidence_folders:
+        allowed_folders = ", ".join(sorted(allowed_evidence_folders))
         raise ValueError(
-            "E1 evidence must come from strategy/ or motivation/. "
+            f"Evidence must come from one of: {allowed_folders}. "
             f"Received: {locator}"
         )
 
@@ -68,26 +65,28 @@ def _validate_evidence_locator(locator: str, evidence_directory: Path) -> None:
     try:
         evidence_file.relative_to(evidence_directory)
     except ValueError:
-        raise ValueError(f"Evidence locator escapes the evidence directory: {locator}") from None
+        raise ValueError(
+            f"Evidence locator escapes the evidence directory: {locator}"
+        ) from None
 
     if not evidence_file.is_file():
         raise ValueError(
-            "Evidence file does not exist for locator: "
-            f"{locator}"
+            f"Evidence file does not exist for locator: {locator}"
         )
 
 
-def persist_strategy_element(element: ModelElement) -> Path:
-    """
-    Validate evidence and save one JSON file into the model Git checkout.
-
-    Existing files with identical content are left unchanged. This makes
-    repeated runs stable and avoids needless Git diffs.
-    """
-    if element.layer not in ALLOWED_LAYERS:
+def persist_element(
+    element: ModelElement,
+    *,
+    allowed_layers: set[str],
+    allowed_evidence_folders: set[str],
+) -> Path:
+    """Validate evidence and write one schema-valid element JSON file."""
+    if element.layer not in allowed_layers:
+        valid_layers = ", ".join(sorted(allowed_layers))
         raise ValueError(
-            "strategy-analyst can only write motivation or strategy elements. "
-            f"Received layer: {element.layer}"
+            f"This writer accepts only these layers: {valid_layers}. "
+            f"Received: {element.layer}"
         )
 
     evidence_directory = _configured_directory("EVIDENCE_DIR")
@@ -95,7 +94,11 @@ def persist_strategy_element(element: ModelElement) -> Path:
     system_id = os.environ.get("MODEL_SYSTEM_ID", "legacy-system")
 
     for citation in element.evidence:
-        _validate_evidence_locator(citation.locator, evidence_directory)
+        _validate_evidence_locator(
+            citation.locator,
+            evidence_directory,
+            allowed_evidence_folders,
+        )
 
     output_file = (
         model_repository_directory
@@ -125,31 +128,84 @@ def persist_strategy_element(element: ModelElement) -> Path:
     return output_file
 
 
-def create_validated_element_writer() -> StructuredTool:
-    """
-    Create the only tool E1 may use to create model-element JSON.
+def _create_element_writer(
+    *,
+    tool_name: str,
+    description: str,
+    allowed_layers: set[str],
+    allowed_evidence_folders: set[str],
+) -> StructuredTool:
+    """Create one schema-valid model-element writing tool."""
 
-    The tool validates the D0 schema before writing anything.
-    """
-
-    def write_model_element(**element_data: Any) -> str:
+    def write_element(**element_data: Any) -> str:
         element = ModelElement.model_validate(element_data)
-        output_file = persist_strategy_element(element)
+
+        output_file = persist_element(
+            element,
+            allowed_layers=allowed_layers,
+            allowed_evidence_folders=allowed_evidence_folders,
+        )
+
+        system_id = os.environ.get("MODEL_SYSTEM_ID", "legacy-system")
 
         return (
             f"Validated element '{element.id}' written to "
-            f"/systems/{os.environ.get('MODEL_SYSTEM_ID', 'legacy-system')}"
-            f"/as-is/{element.layer}/{output_file.name}"
+            f"/systems/{system_id}/as-is/{element.layer}/{output_file.name}"
         )
 
     return StructuredTool.from_function(
-        func=write_model_element,
-        name="write_model_element",
-        description=(
-            "Validate and persist exactly one Motivation or Strategy ArchiMate "
-            "element. Use this only after reading the cited evidence file. "
-            "Each evidence locator must be a real path below strategy/ or "
-            "motivation/, optionally followed by #Section Name."
-        ),
+        func=write_element,
+        name=tool_name,
+        description=description,
         args_schema=ModelElement,
+    )
+
+
+# E1: Strategy and Motivation writer
+
+
+def persist_strategy_element(element: ModelElement) -> Path:
+    """Write a Motivation or Strategy element backed by approved evidence."""
+    return persist_element(
+        element,
+        allowed_layers={"motivation", "strategy"},
+        allowed_evidence_folders={"motivation", "strategy"},
+    )
+
+
+def create_validated_element_writer() -> StructuredTool:
+    """Return the E1 writer tool. Kept for strategy_analyst compatibility."""
+    return _create_element_writer(
+        tool_name="write_model_element",
+        description=(
+            "Validate and persist one Motivation or Strategy ArchiMate element. "
+            "Evidence must refer to a real file under strategy/ or motivation/."
+        ),
+        allowed_layers={"motivation", "strategy"},
+        allowed_evidence_folders={"motivation", "strategy"},
+    )
+
+
+# E2: Business writer
+
+
+def persist_business_element(element: ModelElement) -> Path:
+    """Write a Business element backed by approved business evidence."""
+    return persist_element(
+        element,
+        allowed_layers={"business"},
+        allowed_evidence_folders={"business"},
+    )
+
+
+def create_business_element_writer() -> StructuredTool:
+    """Return the E2 business-only validated writer tool."""
+    return _create_element_writer(
+        tool_name="write_business_element",
+        description=(
+            "Validate and persist one Business ArchiMate element. "
+            "Evidence must refer to a real file under business/."
+        ),
+        allowed_layers={"business"},
+        allowed_evidence_folders={"business"},
     )
