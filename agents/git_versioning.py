@@ -165,6 +165,8 @@ def commit_to_model(system_id: str, run_id: str) -> CommitResult:
         sha = git(["rev-parse", "HEAD"], cwd=repo_dir).stdout.strip()
         git(["push", "-u", "origin", branch_name], cwd=repo_dir, authenticated=True)
 
+        git(["switch", "main"], cwd=repo_dir, check=False)
+
         return CommitResult(
             status="recovered_and_pushed",
             branch=branch_name,
@@ -201,47 +203,51 @@ def commit_to_model(system_id: str, run_id: str) -> CommitResult:
             "Update main before the pipeline generates model files."
         )
 
-    # `switch -c` without origin/main preserves the model files that E/F created.
-    git(["switch", "-c", branch_name], cwd=repo_dir)
+    try:
+        # `switch -c` without origin/main preserves the model files that E/F created.
+        git(["switch", "-c", branch_name], cwd=repo_dir)
 
-    # Stage only model output for this system.
-    git(["add", "--", target_path], cwd=repo_dir)
+        # Stage only model output for this system.
+        git(["add", "--", target_path], cwd=repo_dir)
 
-    staged_files = git(
-        ["diff", "--cached", "--name-only"],
-        cwd=repo_dir,
-    ).stdout.strip().splitlines()
+        staged_files = git(
+            ["diff", "--cached", "--name-only"],
+            cwd=repo_dir,
+        ).stdout.strip().splitlines()
 
-    if not staged_files:
-        return CommitResult(
-            status="no_changes",
-            branch=branch_name,
-            commit_sha=None,
-            message="No model files changed, so no commit was created.",
-        )
-
-    # Safety check: do not accidentally commit unrelated files.
-    for file_name in staged_files:
-        if not file_name.startswith(f"{target_path}/"):
-            raise RuntimeError(
-                f"Refusing to commit unrelated staged file: {file_name}"
+        if not staged_files:
+            return CommitResult(
+                status="no_changes",
+                branch=branch_name,
+                commit_sha=None,
+                message="No model files changed, so no commit was created.",
             )
 
-    git(
-        [
-            "commit",
-            "-m",
-            f"feat(model): ingest {system_id} [run_id: {run_id}]",
-        ],
-        cwd=repo_dir,
-    )
+        # Safety check: do not accidentally commit unrelated files.
+        for file_name in staged_files:
+            if not file_name.startswith(f"{target_path}/"):
+                raise RuntimeError(
+                    f"Refusing to commit unrelated staged file: {file_name}"
+                )
 
-    commit_sha = git(["rev-parse", "HEAD"], cwd=repo_dir).stdout.strip()
-    git(["push", "-u", "origin", branch_name], cwd=repo_dir, authenticated=True)
+        git(
+            [
+                "commit",
+                "-m",
+                f"feat(model): ingest {system_id} [run_id: {run_id}]",
+            ],
+            cwd=repo_dir,
+        )
 
-    return CommitResult(
-        status="pushed",
-        branch=branch_name,
-        commit_sha=commit_sha,
-        message="Feature branch was created, committed, and pushed.",
-    )
+        commit_sha = git(["rev-parse", "HEAD"], cwd=repo_dir).stdout.strip()
+        git(["push", "-u", "origin", branch_name], cwd=repo_dir, authenticated=True)
+
+        return CommitResult(
+            status="pushed",
+            branch=branch_name,
+            commit_sha=commit_sha, 
+            message="Feature branch was created, committed, and pushed.",
+        )
+
+    finally:
+        git(["switch", "main"], cwd=repo_dir, check=False)
