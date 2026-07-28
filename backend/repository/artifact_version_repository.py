@@ -54,3 +54,56 @@ def update_artifact_version(
     return artifact
 
 
+def get_artifact_version_by_run(
+    db: Session,
+    system_id: int,
+    run_id: str,
+) -> ArtifactVersion | None:
+    statement = select(ArtifactVersion).where(
+        ArtifactVersion.system_id == system_id,
+        ArtifactVersion.run_id == run_id,
+    )
+
+    return db.execute(statement).scalar_one_or_none()
+
+
+def save_pending_artifact_version(
+    db: Session,
+    *,
+    system_id: int,
+    run_id: str,
+    commit_sha: str,
+    pr_number: int,
+) -> ArtifactVersion:
+    artifact = get_artifact_version_by_run(
+        db=db,
+        system_id=system_id,
+        run_id=run_id,
+    )
+
+    if artifact is None:
+        artifact = ArtifactVersion(
+            system_id=system_id,
+            phase="as-is",
+            tag=f"pr-{pr_number}",
+            author_type="agent",
+            run_id=run_id,
+            commit_sha=commit_sha,
+            pr_number=pr_number,
+            approval_status="pending",
+            created_at=datetime.utcnow(),
+        )
+        db.add(artifact)
+
+    else:
+        artifact.phase = "as-is"
+        artifact.tag = f"pr-{pr_number}"
+        artifact.author_type = "agent"
+        artifact.commit_sha = commit_sha
+        artifact.pr_number = pr_number
+        artifact.approval_status = "pending"
+
+    db.commit()
+    db.refresh(artifact)
+
+    return artifact

@@ -4,6 +4,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    UniqueConstraint,
 )
 
 from sqlalchemy.orm import relationship
@@ -14,6 +15,14 @@ from backend.database.base import Base
 class ArtifactVersion(Base):
     __tablename__ = "artifact_versions"
 
+    __table_args__ = (
+        UniqueConstraint(
+            "system_id",
+            "run_id",
+            name="uq_artifact_versions_system_run",
+        ),
+    )
+
     id = Column(Integer, primary_key=True)
 
     system_id = Column(
@@ -23,6 +32,8 @@ class ArtifactVersion(Base):
     )
 
     commit_sha = Column(String(255))
+
+    pr_number = Column(Integer, nullable=True, unique=True)
 
     phase = Column(String(100))
 

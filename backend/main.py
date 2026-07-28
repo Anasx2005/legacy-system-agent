@@ -1,0 +1,17 @@
+"""FastAPI main application entrypoint."""
+
+from fastapi import FastAPI
+from backend.api.webhooks import router as webhooks_router
+
+app = FastAPI(
+    title="Legacy System Architecture Recovery API",
+    description="Control Plane & Webhook Receiver for ArchiMate model ingestion pipeline",
+    version="0.1.0",
+)
+
+app.include_router(webhooks_router)
+
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok", "service": "legacy-system-agent"}
