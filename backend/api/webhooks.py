@@ -21,7 +21,6 @@ from backend.database.models.model_element_index import ModelElementIndex
 from backend.database.models.webhook_delivery import WebhookDelivery
 from backend.database.session import get_db
 
-
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -39,11 +38,14 @@ def verify_github_signature(
     if not signature or not signature.startswith("sha256="):
         return False
 
-    expected = "sha256=" + hmac.new(
-        secret.encode("utf-8"),
-        raw_body,
-        hashlib.sha256,
-    ).hexdigest()
+    expected = (
+        "sha256="
+        + hmac.new(
+            secret.encode("utf-8"),
+            raw_body,
+            hashlib.sha256,
+        ).hexdigest()
+    )
 
     return hmac.compare_digest(expected, signature)
 
@@ -67,7 +69,6 @@ def git(repo_dir: Path, args: list[str]) -> str:
 def read_merged_elements_from_main(
     *,
     system_id: str,
-    merge_commit_sha: str,
 ) -> list[dict[str, Any]]:
     """
     Read element JSON files directly from origin/main.
@@ -84,6 +85,7 @@ def read_merged_elements_from_main(
     repo_dir = repo_dir.resolve()
 
     git(repo_dir, ["fetch", "origin", "main"])
+    main_commit_sha = git(repo_dir, ["rev-parse", "origin/main"])
 
     model_root = f"systems/{system_id}/as-is"
 
@@ -98,9 +100,7 @@ def read_merged_elements_from_main(
         if not git_path.endswith(".json"):
             continue
 
-        if git_path.endswith(
-            ("validation-report.json", "reconciliation-report.json")
-        ):
+        if git_path.endswith(("validation-report.json", "reconciliation-report.json")):
             continue
 
         raw_json = git(
@@ -117,9 +117,7 @@ def read_merged_elements_from_main(
 
         required_fields = ("layer", "archimate_type", "name")
         if not all(element.get(field) for field in required_fields):
-            raise RuntimeError(
-                f"Element is missing required index fields: {git_path}"
-            )
+            raise RuntimeError(f"Element is missing required index fields: {git_path}")
 
         elements.append(
             {
@@ -127,7 +125,9 @@ def read_merged_elements_from_main(
                 "layer": element["layer"],
                 "archimate_type": element["archimate_type"],
                 "name": element["name"],
-                "current_commit": merge_commit_sha,
+                # The index must describe exactly the revision from which the
+                # files were read, even if main advanced after this PR merged.
+                "current_commit": main_commit_sha,
             }
         )
 
@@ -144,13 +144,10 @@ def rebuild_model_element_index(
     """Replace the index with the content actually present in origin/main."""
     elements = read_merged_elements_from_main(
         system_id=system_id,
-        merge_commit_sha=merge_commit_sha,
     )
 
     db.execute(
-        delete(ModelElementIndex).where(
-            ModelElementIndex.system_id == system_db_id
-        )
+        delete(ModelElementIndex).where(ModelElementIndex.system_id == system_db_id)
     )
 
     for element in elements:
@@ -184,7 +181,7 @@ async def handle_github_webhook(
         default=None,
         alias="X-Hub-Signature-256",
     ),
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_db),  # noqa: B008 - FastAPI dependency declaration
 ) -> dict[str, Any]:
     raw_body = await request.body()
     webhook_secret = os.getenv("GITHUB_WEBHOOK_SECRET")
@@ -258,9 +255,7 @@ async def handle_github_webhook(
         }
 
     artifact = db.execute(
-        select(ArtifactVersion).where(
-            ArtifactVersion.pr_number == pr_number
-        )
+        select(ArtifactVersion).where(ArtifactVersion.pr_number == pr_number)
     ).scalar_one_or_none()
 
     if artifact is None:
@@ -300,8 +295,8 @@ async def handle_github_webhook(
         )
 
         artifact.approval_status = "approved"
-        artifact.approved_by = (
-            pull_request.get("merged_by", {}).get("login", "github_webhook")
+        artifact.approved_by = pull_request.get("merged_by", {}).get(
+            "login", "github_webhook"
         )
         artifact.approved_at = datetime.now(UTC)
 

@@ -49,4 +49,3 @@ Return written relationships and skipped candidates.
             )
         ],
     }
-    

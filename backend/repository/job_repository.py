@@ -11,12 +11,14 @@ def create_job(
     system_id: int,
     phase: str,
     status: str,
+    run_id: str | None = None,
 ) -> Job:
 
     job = Job(
         system_id=system_id,
         phase=phase,
         status=status,
+        run_id=run_id,
     )
 
     db.add(job)
@@ -26,7 +28,8 @@ def create_job(
     return job
 
 
-
+def get_job(db: Session, job_id: int) -> Job | None:
+    return db.execute(select(Job).where(Job.id == job_id)).scalar_one_or_none()
 
 
 def update_job_status(
@@ -35,6 +38,7 @@ def update_job_status(
     status: str,
     error_message: str | None = None,
     finished_at: datetime | None = None,
+    started_at: datetime | None = None,
 ) -> Job | None:
 
     statement = select(Job).where(Job.id == job_id)
@@ -46,14 +50,20 @@ def update_job_status(
     if job is None:
         return None
 
-    if job.status == status and job.error_message == error_message and job.finished_at == finished_at:
+    if (
+        job.status == status
+        and job.error_message == error_message
+        and job.finished_at == finished_at
+    ):
         return job  # Already in target state — idempotent
 
     job.status = status
     job.error_message = error_message
     job.finished_at = finished_at
+    if started_at is not None:
+        job.started_at = started_at
 
     db.commit()
     db.refresh(job)
 
-    return job   
+    return job

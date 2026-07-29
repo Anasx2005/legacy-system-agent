@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from backend.database.models.legacy_system import LegacySystem
 
+
 def create_legacy_system(
     db: Session,
     name: str,
@@ -28,10 +29,17 @@ def get_legacy_system(
     system_id: int,
 ) -> LegacySystem | None:
 
-    statement = select(LegacySystem).where(
-        LegacySystem.id == system_id
-    )
+    statement = select(LegacySystem).where(LegacySystem.id == system_id)
 
     result = db.execute(statement)
 
     return result.scalar_one_or_none()
+
+
+def get_legacy_system_by_name(
+    db: Session,
+    name: str,
+) -> LegacySystem | None:
+    return db.execute(
+        select(LegacySystem).where(LegacySystem.name == name)
+    ).scalar_one_or_none()

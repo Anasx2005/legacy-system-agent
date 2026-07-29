@@ -1,6 +1,8 @@
 """FastAPI main application entrypoint."""
 
 from fastapi import FastAPI
+
+from backend.api.ingestion import router as ingestion_router
 from backend.api.webhooks import router as webhooks_router
 
 app = FastAPI(
@@ -10,6 +12,7 @@ app = FastAPI(
 )
 
 app.include_router(webhooks_router)
+app.include_router(ingestion_router)
 
 
 @app.get("/health")

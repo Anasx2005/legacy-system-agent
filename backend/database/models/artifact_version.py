@@ -28,12 +28,12 @@ class ArtifactVersion(Base):
     system_id = Column(
         Integer,
         ForeignKey("legacy_systems.id"),
-        nullable=False,
+        nullable=False, 
     )
 
     commit_sha = Column(String(255))
 
-    pr_number = Column(Integer, nullable=True, unique=True)
+    pr_number = Column(Integer, nullable=True)
 
     phase = Column(String(100))
 
