@@ -119,8 +119,11 @@ def test_h2_forced_exception_marks_job_failed(
 ):
     configure_scope(monkeypatch, tmp_path)
     monkeypatch.setattr("backend.services.jobs.SessionLocal", session_factory)
+    received_system_db_id: int | None = None
 
     def fail_pipeline(*args, **kwargs):
+        nonlocal received_system_db_id
+        received_system_db_id = kwargs["system_db_id"]
         raise RuntimeError("forced orchestrator failure")
 
     monkeypatch.setattr("backend.services.jobs.run_as_is_ingestion", fail_pipeline)
@@ -142,6 +145,7 @@ def test_h2_forced_exception_marks_job_failed(
         assert job.status == "failed"
         assert "forced orchestrator failure" in job.error_message
         assert job.finished_at is not None
+    assert received_system_db_id == system
 
 
 @pytest.fixture

@@ -93,6 +93,22 @@ Interactive OpenAPI documentation is available at `http://127.0.0.1:8000/docs`.
 For this single-system MVP, the evidence path supplied to `POST /ingest` must be exactly
 the configured `EVIDENCE_DIR`, and the database system name must match `MODEL_SYSTEM_ID`.
 
+## Model viewer frontend (Epic I)
+
+The React/Vite viewer is in `frontend/`. Configure it and start the development server:
+
+```bash
+cd frontend
+copy .env.example .env
+npm install
+npm run dev
+```
+
+Set `VITE_API_BASE_URL` to the H3 backend URL and `VITE_SYSTEM_ID` to the numeric
+`legacy_systems.id`. Configure the GitHub repository variables to enable evidence and PR links.
+For safer local use, leave `VITE_API_KEY` blank and enter the API key in the viewer; it is retained
+only for the current browser session.
+
 
 ## Database
 

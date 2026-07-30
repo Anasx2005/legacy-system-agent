@@ -62,6 +62,7 @@ def run_as_is_ingestion_job(
                 evidence_path,
                 run_id=run_id,
                 db=db,
+                system_db_id=job.system_id,
             )
         except Exception as error:  # noqa: BLE001 - this is the job failure boundary
             update_job_status(

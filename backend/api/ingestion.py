@@ -139,6 +139,7 @@ def list_artifact_versions(
             "run_id": version.run_id,
             "commit_sha": version.commit_sha,
             "pr_number": version.pr_number,
+            "phase": version.phase,
             "approval_status": version.approval_status,
             "approved_by": version.approved_by,
             "approved_at": version.approved_at,

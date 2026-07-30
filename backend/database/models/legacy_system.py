@@ -9,7 +9,9 @@ class LegacySystem(Base):
 
     id = Column(Integer, primary_key=True)
 
-    name = Column(String(255), nullable=False)
+    # Name is the external system identifier used throughout the ingestion
+    # pipeline.  Name-based lookups therefore must never be ambiguous.
+    name = Column(String(255), nullable=False, unique=True)
 
     description = Column(Text)
 

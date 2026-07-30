@@ -15,6 +15,7 @@ from agents.git_versioning import commit_to_model
 from agents.pull_requests import open_pull_request
 from agents.reconciler import run_reconciler
 from agents.validator import ValidationReport, run_validator
+from backend.database.models.legacy_system import LegacySystem
 from backend.database.session import SessionLocal
 from backend.repository.legacy_system_repository import get_legacy_system_by_name
 
@@ -97,6 +98,7 @@ def run_as_is_ingestion(
     *,
     run_id: str | None = None,
     db: Session | None = None,
+    system_db_id: int | None = None,
 ) -> IngestionResult:
     """Run E1-E5, F1-F2, G1 and G2 in the required order.
 
@@ -109,9 +111,15 @@ def run_as_is_ingestion(
     db = db or SessionLocal()
 
     try:
-        system = get_legacy_system_by_name(db, system_id)
+        system = (
+            db.get(LegacySystem, system_db_id)
+            if system_db_id is not None
+            else get_legacy_system_by_name(db, system_id)
+        )
         if system is None:
-            raise PipelineError(f"No legacy system exists with name {system_id!r}.")
+            raise PipelineError(f"No legacy system exists for {system_id!r}.")
+        if system.name != system_id:
+            raise PipelineError("Job system ID does not match MODEL_SYSTEM_ID.")
 
         _run_parallel_analysts(run_id)
         _invoke_subagent("integration-mapper", run_id)
