@@ -172,6 +172,19 @@ def test_h3_rejects_missing_api_key(api_client):
     assert response.status_code == 401
 
 
+def test_h3_returns_the_configured_system(monkeypatch, api_client):
+    client, system_id = api_client
+    monkeypatch.setenv("MODEL_SYSTEM_ID", "legacy-system")
+
+    response = client.get(
+        "/systems/configured",
+        headers={"X-API-Key": "test-api-key"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"id": system_id, "name": "legacy-system"}
+
+
 def test_h3_model_read_endpoints_and_errors(monkeypatch, api_client, session_factory):
     client, system_id = api_client
     with session_factory() as db:

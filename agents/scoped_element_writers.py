@@ -8,7 +8,7 @@ from typing import Any
 from langchain_core.tools import StructuredTool
 
 from agents.model_element_writer import persist_element
-from agents.schema import ModelElement
+from agents.schema import EvidenceCitation, ModelElement
 
 
 LINE_RANGE_PATTERN = re.compile(
@@ -16,11 +16,17 @@ LINE_RANGE_PATTERN = re.compile(
 )
 
 
-def _validate_line_range_evidence(
+def _canonicalize_line_range_evidence(
     element: ModelElement,
     expected_folder: str,
-) -> None:
-    """Require locators such as code/api/routes.py#L10-L24."""
+) -> ModelElement:
+    """Validate and canonicalize file citations supplied by scoped analysts.
+
+    The agent filesystem presents ``/evidence/infra/main.tf`` as ``main.tf`` in
+    some tool responses.  Preserve strict scope validation while restoring the
+    unambiguous configured folder for that bare-file form.
+    """
+    evidence: list[EvidenceCitation] = []
     for citation in element.evidence:
         locator = citation.locator.replace("\\", "/")
 
@@ -34,6 +40,10 @@ def _validate_line_range_evidence(
         elif locator.startswith("evidence/"):
             locator = locator.removeprefix("evidence/")
 
+        file_part = locator.split("#", maxsplit=1)[0]
+        if "/" not in file_part:
+            locator = f"{expected_folder}/{locator}"
+
         if not locator.startswith(f"{expected_folder}/"):
             raise ValueError(
                 f"Evidence must begin with {expected_folder}/. "
@@ -46,6 +56,10 @@ def _validate_line_range_evidence(
                 f"{expected_folder}/path/file.py#L10-L24. "
                 f"Received: {citation.locator}"
             )
+
+        evidence.append(citation.model_copy(update={"locator": locator}))
+
+    return element.model_copy(update={"evidence": evidence})
 
 
 def _create_scoped_element_writer(
@@ -73,13 +87,21 @@ def _create_scoped_element_writer(
                 f"Allowed types: {', '.join(sorted(allowed_types))}"
             )
 
-        _validate_line_range_evidence(element, evidence_folder)
-
-        output_file = persist_element(
-            element,
-            allowed_layers={layer},
-            allowed_evidence_folders={evidence_folder},
-        )
+        try:
+            element = _canonicalize_line_range_evidence(element, evidence_folder)
+            output_file = persist_element(
+                element,
+                allowed_layers={layer},
+                allowed_evidence_folders={evidence_folder},
+            )
+        except ValueError as error:
+            # An LLM may propose a plausible-looking but nonexistent file.  It
+            # must not bypass validation, but one bad candidate must not abort
+            # the entire multi-agent ingestion run.
+            return (
+                f"Element skipped: {error}. Use a real file under "
+                f"{evidence_folder}/ with a line-range locator."
+            )
 
         return f"Validated element written: {output_file.name}"
 

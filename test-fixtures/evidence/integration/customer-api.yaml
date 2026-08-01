@@ -1,0 +1,11 @@
+openapi: 3.0.3
+info:
+  title: Customer API
+  version: 1.0.0
+paths:
+  /customers/{customerId}:
+    get:
+      summary: Retrieve a customer for the Account Enquiry process
+      responses:
+        "200":
+          description: Customer record

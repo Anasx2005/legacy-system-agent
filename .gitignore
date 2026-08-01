@@ -7,6 +7,8 @@ __pycache__/
 node_modules/
 
 .pytest_cache/
+.test-tmp/
+.uv-cache/
 
 build/
 

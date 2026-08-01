@@ -1,0 +1,9 @@
+openapi: 3.0.3
+info:
+  title: Retired billing integration (intentional invalid fixture)
+  version: 1.0.0
+x-model-relationship:
+  source_id: app-customer-api
+  target_id: app-retired-billing-service
+  type: Serving
+  note: The target is intentionally absent; F2/E5 must reject this reference.

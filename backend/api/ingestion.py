@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
@@ -14,7 +15,10 @@ from backend.database.models.artifact_version import ArtifactVersion
 from backend.database.models.job import Job
 from backend.database.models.model_element_index import ModelElementIndex
 from backend.database.session import get_db
-from backend.repository.legacy_system_repository import get_legacy_system
+from backend.repository.legacy_system_repository import (
+    get_legacy_system,
+    get_legacy_system_by_name,
+)
 from backend.services.ingestion import PipelineError, _validate_pipeline_scope
 from backend.services.jobs import enqueue_as_is_ingestion
 from backend.services.model_reader import read_model_element_from_main
@@ -24,6 +28,24 @@ router = APIRouter(dependencies=[Depends(require_api_key)])
 
 class IngestRequest(BaseModel):
     evidence_path: str = Field(min_length=1)
+
+
+@router.get("/systems/configured")
+def get_configured_system(
+    db: Session = Depends(get_db),  # noqa: B008 - FastAPI dependency declaration
+) -> dict[str, object]:
+    """Return the one system this single-system deployment is configured to run."""
+    system_name = os.getenv("MODEL_SYSTEM_ID", "legacy-system")
+    system = get_legacy_system_by_name(db, system_name)
+    if system is None:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "The configured MODEL_SYSTEM_ID is not present in the database. "
+                "Run scripts/ensure_legacy_system.py before starting ingestion."
+            ),
+        )
+    return {"id": system.id, "name": system.name}
 
 
 @router.post("/systems/{system_id}/ingest", status_code=status.HTTP_202_ACCEPTED)

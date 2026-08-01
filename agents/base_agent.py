@@ -31,10 +31,10 @@ def create_subagents():
     ]
 
 
-def create_base_agent():
+def create_base_agent(*, model=None):
     """Create the MVP Deep Agent with D3 placeholder subagents."""
     return create_deep_agent(
-        model=get_llm(),
+        model=model or get_llm(),
         name="Legacy System Model Agent",
         backend=create_agent_backend(),
         permissions=agent_filesystem_permissions(),

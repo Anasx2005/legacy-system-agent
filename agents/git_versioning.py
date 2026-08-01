@@ -100,6 +100,34 @@ def local_branch_exists(repo_dir: Path, branch_name: str) -> bool:
     return result.returncode == 0
 
 
+def switch_to_main_preserving_model_output(repo_dir: Path) -> None:
+    """Return to main without discarding files produced before G1 starts.
+
+    The analysts write their output before Git creates a run branch.  A previous
+    failed run can therefore leave the checkout on an older feature branch.
+    ``switch --merge`` carries non-conflicting output changes to main and aborts
+    safely if Git detects a conflict.
+    """
+    current_branch = git(
+        ["branch", "--show-current"],
+        cwd=repo_dir,
+    ).stdout.strip()
+    if current_branch == "main":
+        return
+
+    result = git(
+        ["switch", "main", "--merge"],
+        cwd=repo_dir,
+        check=False,
+    )
+    if result.returncode != 0:
+        error = result.stderr.strip() or result.stdout.strip()
+        raise RuntimeError(
+            "G1 could not safely return the model repository to main while "
+            f"preserving generated output from {current_branch!r}.\n{error}"
+        )
+
+
 def commit_to_model(system_id: str, run_id: str) -> CommitResult:
     """
     G1:
@@ -128,6 +156,7 @@ def commit_to_model(system_id: str, run_id: str) -> CommitResult:
 
     # Refresh main and check GitHub first, not only local branches.
     git(["fetch", "origin", "main"], cwd=repo_dir, authenticated=True)
+    switch_to_main_preserving_model_output(repo_dir)
 
     if remote_branch_exists(repo_dir, branch_name):
         sha = git(
@@ -172,19 +201,6 @@ def commit_to_model(system_id: str, run_id: str) -> CommitResult:
             branch=branch_name,
             commit_sha=sha,
             message="Recovered the local branch and pushed it to GitHub.",
-        )
-
-    # The pipeline writes model files before G1 runs, so creating the branch
-    # must preserve those uncommitted files.
-    current_branch = git(
-        ["branch", "--show-current"],
-        cwd=repo_dir,
-    ).stdout.strip()
-
-    if current_branch != "main":
-        raise RuntimeError(
-            "G1 must start from the local main branch. "
-            f"Current branch is: {current_branch}"
         )
 
     local_main_sha = git(

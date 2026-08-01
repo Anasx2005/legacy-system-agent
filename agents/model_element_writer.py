@@ -9,7 +9,7 @@ from typing import Any
 
 from langchain_core.tools import StructuredTool
 
-from agents.schema import ModelElement
+from agents.schema import EvidenceCitation, ModelElement
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -75,6 +75,34 @@ def _validate_evidence_locator(
         )
 
 
+def _canonicalize_evidence_locators(
+    element: ModelElement,
+    evidence_directory: Path,
+    allowed_evidence_folders: set[str],
+) -> ModelElement:
+    """Add an evidence folder to a bare filename when its location is unique."""
+    evidence: list[EvidenceCitation] = []
+    for citation in element.evidence:
+        locator = citation.locator.replace("\\", "/")
+        if locator.startswith("/evidence/"):
+            locator = locator.removeprefix("/evidence/")
+        elif locator.startswith("evidence/"):
+            locator = locator.removeprefix("evidence/")
+
+        file_part = locator.split("#", maxsplit=1)[0]
+        if "/" not in file_part:
+            matches = [
+                folder
+                for folder in allowed_evidence_folders
+                if (evidence_directory / folder / file_part).is_file()
+            ]
+            if len(matches) == 1:
+                locator = f"{matches[0]}/{locator}"
+
+        evidence.append(citation.model_copy(update={"locator": locator}))
+    return element.model_copy(update={"evidence": evidence})
+
+
 def persist_element(
     element: ModelElement,
     *,
@@ -92,6 +120,11 @@ def persist_element(
     evidence_directory = _configured_directory("EVIDENCE_DIR")
     model_repository_directory = _configured_directory("MODEL_REPO_DIR")
     system_id = os.environ.get("MODEL_SYSTEM_ID", "legacy-system")
+    element = _canonicalize_evidence_locators(
+        element,
+        evidence_directory,
+        allowed_evidence_folders,
+    )
 
     for citation in element.evidence:
         _validate_evidence_locator(
@@ -140,11 +173,14 @@ def _create_element_writer(
     def write_element(**element_data: Any) -> str:
         element = ModelElement.model_validate(element_data)
 
-        output_file = persist_element(
-            element,
-            allowed_layers=allowed_layers,
-            allowed_evidence_folders=allowed_evidence_folders,
-        )
+        try:
+            output_file = persist_element(
+                element,
+                allowed_layers=allowed_layers,
+                allowed_evidence_folders=allowed_evidence_folders,
+            )
+        except ValueError as error:
+            return f"Element skipped: {error}. Use a real cited evidence file."
 
         system_id = os.environ.get("MODEL_SYSTEM_ID", "legacy-system")
 

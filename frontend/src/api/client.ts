@@ -11,6 +11,11 @@ export interface Job {
   finished_at: string | null;
 }
 
+export interface ConfiguredSystem {
+  id: number;
+  name: string;
+}
+
 export interface ModelElementIndex {
   id: number;
   layer: string;
@@ -98,6 +103,10 @@ export class ApiClient {
 
   getJob(jobId: number) {
     return this.request<Job>(`/jobs/${jobId}`);
+  }
+
+  getConfiguredSystem() {
+    return this.request<ConfiguredSystem>("/systems/configured");
   }
 
   listElements(systemId: number) {
